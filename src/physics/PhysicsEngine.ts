@@ -309,8 +309,9 @@ export class PhysicsEngine {
       }
     }
 
+    // Positive roll = left bank (rotation.z), so LEFT arrow must add and RIGHT arrow subtract
     const pitchControl = (input.arrowDown ? 1 : 0) - (input.arrowUp ? 1 : 0);
-    const rollControl = (input.arrowRight ? 1 : 0) - (input.arrowLeft ? 1 : 0);
+    const rollControl = (input.arrowLeft ? 1 : 0) - (input.arrowRight ? 1 : 0);
 
     this.wingStatus = this.car.updateWingAnimation(
       this.wingProgress,
@@ -387,9 +388,12 @@ export class PhysicsEngine {
     const maxSpeedMps = (this.wingProgress > 0.8 ? 98 : 92) * engineHealthFactor; // ~205-220 MPH top speed
     const maxReverseMps = 22;
 
+    // Handbrake drift: SPACE + A/D breaks rear traction instead of braking hard
+    const drifting = input.space && (input.a || input.d) && Math.abs(this.forwardSpeed) > 6;
+
     if (input.space) {
-      // High-performance carbon-ceramic braking
-      const brakeDecel = 38;
+      // Plain SPACE = carbon-ceramic braking; with a steering key it becomes a drift
+      const brakeDecel = drifting ? 7 : 38;
       if (Math.abs(this.forwardSpeed) < brakeDecel * dt) {
         this.forwardSpeed = 0;
       } else {
@@ -430,14 +434,14 @@ export class PhysicsEngine {
     // Steering with speed-sensitive response (A / D keys)
     const steerInput = (input.a ? 1 : 0) - (input.d ? 1 : 0);
     const speedAbs = Math.abs(this.forwardSpeed);
-    const highSpeedAtten = 1 / (1 + speedAbs * 0.032);
-    const targetSteer = steerInput * 0.48 * highSpeedAtten - wheelDmgPull * 0.15;
+    const highSpeedAtten = 1 / (1 + speedAbs * (drifting ? 0.012 : 0.032));
+    const targetSteer = steerInput * (drifting ? 0.62 : 0.48) * highSpeedAtten - wheelDmgPull * 0.15;
     this.steerAngle = THREE.MathUtils.lerp(this.steerAngle, targetSteer, 11 * dt);
 
     // Turning yaw rate (only turns when wheels are rolling)
     const turnFactor = Math.min(1, speedAbs / 3.5);
     const moveDir = this.forwardSpeed >= 0 ? 1 : -1;
-    this.yawRate = this.steerAngle * 2.55 * turnFactor * moveDir;
+    this.yawRate = this.steerAngle * 2.55 * turnFactor * moveDir * (drifting ? 1.7 : 1);
     this.heading += this.yawRate * dt;
 
     // Body roll during high-speed cornering
@@ -448,8 +452,10 @@ export class PhysicsEngine {
     // Compute world velocity with slight high-speed lateral tire slip
     const forwardX = -Math.sin(this.heading);
     const forwardZ = -Math.cos(this.heading);
-    this.velocity.x = THREE.MathUtils.lerp(this.velocity.x, forwardX * this.forwardSpeed, 10 * dt);
-    this.velocity.z = THREE.MathUtils.lerp(this.velocity.z, forwardZ * this.forwardSpeed, 10 * dt);
+    // Low lateral grip while drifting lets the momentum run wider than the nose
+    const grip = drifting ? 1.6 : 10;
+    this.velocity.x = THREE.MathUtils.lerp(this.velocity.x, forwardX * this.forwardSpeed, grip * dt);
+    this.velocity.z = THREE.MathUtils.lerp(this.velocity.z, forwardZ * this.forwardSpeed, grip * dt);
     this.velocity.y = 0;
 
     this.position.x += this.velocity.x * dt;
@@ -565,8 +571,13 @@ export class PhysicsEngine {
     }
     this.roll = THREE.MathUtils.clamp(this.roll, -1.28, 1.28);
 
-    // Coordinated Banked Turning: rolling tilts the lift vector horizontally, turning the aircraft!
-    const bankTurnRate = -Math.sin(this.roll) * 1.18 * (0.4 + 0.6 * wingAreaFactor);
+    // A / D yaw the nose directly; the arrow keys only bank.
+    const yawControl = (input.a ? 1 : 0) - (input.d ? 1 : 0);
+
+    // Coordinated Banked Turning: a left bank (roll > 0) tilts lift left and turns left
+    const bankTurnRate =
+      Math.sin(this.roll) * 1.18 * (0.4 + 0.6 * wingAreaFactor) +
+      yawControl * 1.25 * controlAuthority;
     this.yawRate = THREE.MathUtils.lerp(this.yawRate, bankTurnRate, 6 * dt);
     this.heading += this.yawRate * dt;
 

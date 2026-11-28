@@ -320,12 +320,16 @@ export const SupercarAvionicsHud: React.FC<Props> = ({
                   <kbd className="font-mono-tech text-white">W / S</kbd>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">STEER (GROUND)</span>
+                  <span className="text-slate-400">STEER / YAW</span>
                   <kbd className="font-mono-tech text-white">A / D</kbd>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-400">BRAKE / AIRBRAKE</span>
                   <kbd className="font-mono-tech text-white">SPACE</kbd>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">HANDBRAKE DRIFT</span>
+                  <kbd className="font-mono-tech text-white">SPACE + A/D</kbd>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-400">DEPLOY WINGS</span>
